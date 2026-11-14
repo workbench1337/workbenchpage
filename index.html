@@ -273,11 +273,18 @@
     { file: 'music/dont-blink.mp3', title: "Don't Blink" },
     { file: 'music/intc.mp3', title: 'INTC' },
     { file: 'music/no-gasoline.mp3', title: 'No Gasoline' },
+    ...Array.from({ length: 9 }, (_, i) => ({ file: `music/track-${i + 1}.mp3`, title: `#${i + 1}` })),
   ];
   const MUSIC_KEY = 'teamboard.music';
   let view = 'tasks';
-  let music = { volume: 0.5, muted: false, enabled: SONGS.map(s => s.file) };
-  try { Object.assign(music, JSON.parse(localStorage.getItem(MUSIC_KEY) || '{}')); } catch {}
+  let music = { volume: 0.5, muted: false, enabled: SONGS.map(s => s.file), known: SONGS.map(s => s.file) };
+  try {
+    const saved = JSON.parse(localStorage.getItem(MUSIC_KEY) || '{}');
+    // Songs added since this browser last saved its picks start out switched on
+    const known = saved.known || ['music/the-moment.mp3', 'music/dont-blink.mp3', 'music/intc.mp3', 'music/no-gasoline.mp3'];
+    if (saved.enabled) saved.enabled = [...saved.enabled, ...SONGS.map(s => s.file).filter(f => !known.includes(f))];
+    Object.assign(music, saved, { known: SONGS.map(s => s.file) });
+  } catch {}
   const saveMusic = () => { try { localStorage.setItem(MUSIC_KEY, JSON.stringify(music)); } catch {} };
   const audio = $('#audio');
   let current = null;       // file currently loaded
