@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Task Board</title>
+<style>
+  :root {
+    --bg: #14161c; --panel: #1c1f27; --panel2: #242833; --line: #2f3442;
+    --text: #e6e8ee; --muted: #9098aa; --accent: #6ea8ff; --accent2: #3d6fd1;
+    --danger: #ff6b6b; --ok: #4fd18b; --warn: #ffbf5c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--panel2); border-radius: 6px; padding: 6px 12px; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  button.primary:hover { background: var(--accent); }
+  button.danger { color: var(--danger); }
+  button.icon { padding: 2px 8px; background: transparent; border-color: transparent; color: var(--muted); }
+  button.icon:hover { color: var(--danger); border-color: var(--line); }
+  input, textarea, select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; width: 100%; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 60px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 0 0 4px; }
+
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; flex: 1; }
+  #status { font-size: 12px; color: var(--muted); }
+  #status.dirty { color: var(--warn); }
+  #status.err { color: var(--danger); }
+
+  .layout { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 53px); }
+  aside { background: var(--panel); border-right: 1px solid var(--line); padding: 14px; }
+  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .member { display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-radius: 6px; cursor: pointer; }
+  .member:hover { background: var(--panel2); }
+  .member.active { background: var(--panel2); outline: 1px solid var(--accent2); }
+  .member .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .member .count { font-size: 11px; color: var(--muted); }
+  .add-row { display: flex; gap: 6px; margin-top: 12px; }
+  .add-row input { flex: 1; }
+
+  main { padding: 22px; max-width: 1000px; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+  .page-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .page-head h2 { margin: 0; font-size: 22px; flex: 1; }
+  .page-head .role { color: var(--muted); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; }
+  .grid .full { grid-column: 1 / -1; }
+
+  .filters { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .filters button.on { border-color: var(--accent); color: var(--accent); }
+
+  .task { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+  .task.p-High { border-left-color: var(--danger); }
+  .task.p-Medium { border-left-color: var(--warn); }
+  .task.p-Low { border-left-color: var(--ok); }
+  .task.done { opacity: .55; }
+  .task.done .t-name { text-decoration: line-through; }
+  .task-top { display: flex; align-items: center; gap: 10px; }
+  .t-name { font-weight: 600; flex: 1; font-size: 15px; }
+  .t-desc { color: var(--muted); margin: 6px 0 0; white-space: pre-wrap; }
+  .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; }
+  .pill { background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; }
+  .pill.overdue { color: var(--danger); border-color: var(--danger); }
+  .pill.soon { color: var(--warn); border-color: var(--warn); }
+  .task select { width: auto; padding: 3px 6px; font-size: 12px; }
+  .edit-area { margin-top: 10px; }
+
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 20px; width: min(460px, 92vw); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog h3 { margin-top: 0; }
+  dialog .field { margin-bottom: 12px; }
+  dialog .hint { font-size: 12px; color: var(--muted); }
+  dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+  #musicHint { border-color: var(--warn); color: var(--warn); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+  #musicBtn.on { border-color: var(--accent); color: var(--accent); }
+  #musicBtn.playing::after { content: ' ♪'; color: var(--ok); }
+  .player { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .player .now { flex: 1; min-width: 160px; }
+  .player .now small { display: block; color: var(--muted); font-size: 12px; }
+  .player .now strong { font-size: 18px; }
+  .vol { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .vol input[type=range] { flex: 1; padding: 0; accent-color: var(--accent); }
+  .vol span { width: 42px; text-align: right; color: var(--muted); }
+  .song { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 6px; }
+  .song:hover { background: var(--panel2); }
+  .song.current { outline: 1px solid var(--accent2); background: var(--panel2); }
+  .song input { width: auto; }
+  .song .title { flex: 1; }
+  .song .tag { font-size: 11px; color: var(--ok); }
+  .muted-note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { border-right: none; border-bottom: 1px solid var(--line); }
+    .grid { grid-template-columns: 1fr 1fr; }
+    .grid > :first-child { grid-column: 1 / -1; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎮 Team Task Board</h1>
+  <span id="status">Loading…</span>
+  <button id="musicHint" hidden title="Your browser needs one click before it can play sound">🔈 Click to start music</button>
+  <button id="musicBtn" title="Music settings">🎵 Music</button>
+  <button id="reloadBtn" title="Load the latest version from GitHub">⟳ Reload</button>
+  <button id="settingsBtn" title="GitHub settings">⚙</button>
+  <button id="commitBtn" class="primary">Commit</button>
+</header>
+
+<div class="layout">
+  <aside>
+    <h2>Team</h2>
+    <div id="memberList"></div>
+    <form class="add-row" id="addMemberForm">
+      <input id="newMemberName" placeholder="New member name" autocomplete="off">
+      <button class="primary" type="submit">+</button>
+    </form>
+  </aside>
+  <main id="main"></main>
+</div>
+<audio id="audio" preload="auto"></audio>
+
+<dialog id="settingsDlg">
+  <form method="dialog" id="settingsForm">
+    <h3>GitHub settings</h3>
+    <div class="field"><label>Owner (user or org)</label><input id="sOwner" required></div>
+    <div class="field"><label>Repository</label><input id="sRepo" required></div>
+    <div class="field"><label>Branch</label><input id="sBranch" placeholder="main"></div>
+    <div class="field"><label>Data file path</label><input id="sPath" placeholder="data.json"></div>
+    <div class="field">
+      <label>Access token</label>
+      <input id="sToken" type="password" placeholder="github_pat_…" autocomplete="off">
+      <p class="hint">Saved only in this browser. Needed to commit; viewing works without it on a public repo.</p>
+    </div>
+    <div class="actions">
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button value="save" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  // ---------- Config ----------
+  const CFG_KEY = 'teamboard.cfg';
+  function guessRepo() {
+    // On GitHub Pages: https://OWNER.github.io/REPO/
+    const m = location.hostname.match(/^([^.]+)\.github\.io$/i);
+    if (!m) return { owner: '', repo: '' };
+    const first = location.pathname.split('/').filter(Boolean)[0];
+    return { owner: m[1], repo: first && !first.includes('.') ? first : `${m[1]}.github.io` };
+  }
+  function loadCfg() {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch {}
+    const g = guessRepo();
+    return {
+      owner: saved.owner || g.owner, repo: saved.repo || g.repo,
+      branch: saved.branch || 'main', path: saved.path || 'data.json',
+      token: saved.token || ''
+    };
+  }
+  let cfg = loadCfg();
+  function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch {} }
+
+  // ---------- State ----------
+  let data = { members: [] };
+  let remoteSha = null;
+  let dirty = false;
+  let filter = 'all';
+  let editingTask = null;
+
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function setStatus(text, cls = '') { const el = $('#status'); el.textContent = text; el.className = cls; }
+  function markDirty() { dirty = true; setStatus('● Unsaved changes — press Commit', 'dirty'); render(); }
+
+  // ---------- GitHub API ----------
+  const b64encode = (str) => { const bytes = new TextEncoder().encode(str); let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b)); return btoa(bin); };
+  const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\n/g, '')), c => c.charCodeAt(0)));
+  function apiUrl() { return `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${cfg.path.split('/').map(encodeURIComponent).join('/')}`; }
+  function headers() {
+    const h = { 'Accept': 'application/vnd.github+json' };
+    if (cfg.token) h['Authorization'] = `Bearer ${cfg.token}`;
+    return h;
+  }
+  async function fetchRemote() {
+    const res = await fetch(`${apiUrl()}?ref=${encodeURIComponent(cfg.branch)}&t=${Date.now()}`, { headers: headers(), cache: 'no-store' });
+    if (res.status === 404) return { data: { members: [] }, sha: null };
+    if (!res.ok) throw new Error(`GitHub ${res.status}: ${(await res.json().catch(() => ({}))).message || res.statusText}`);
+    const j = await res.json();
+    return { data: JSON.parse(b64decode(j.content)), sha: j.sha };
+  }
+
+  async function load() {
+    if (!cfg.owner || !cfg.repo) { setStatus('Set up GitHub in ⚙ settings', 'err'); render(); openSettings(); return; }
+    setStatus('Loading…');
+    try {
+      const r = await fetchRemote();
+      data = r.data; data.members ||= []; remoteSha = r.sha; dirty = false;
+      openFirstMemberIfNone();
+      setStatus(r.sha ? 'Up to date' : 'No data yet — add someone and Commit');
+    } catch (e) { setStatus(e.message, 'err'); }
+    render();
+  }
+
+  async function commit() {
+    if (!cfg.token) { alert('Add an access token in ⚙ settings to commit.'); openSettings(); return; }
+    if (!dirty && remoteSha) { setStatus('Nothing to commit'); return; }
+    $('#commitBtn').disabled = true; setStatus('Committing…');
+    try {
+      // Detect if someone else committed since we loaded
+      const latest = await fetchRemote().catch(() => null);
+      if (latest && latest.sha !== remoteSha) {
+        const ok = confirm('Someone else committed changes since you loaded the page.\n\nOK = overwrite with your version\nCancel = stop (then use Reload to get their changes; your unsaved edits will be lost)');
+        if (!ok) { setStatus('Commit cancelled — remote has newer changes', 'err'); return; }
+        remoteSha = latest.sha;
+      }
+      const body = {
+        message: `Update team tasks (${new Date().toLocaleString()})`,
+        content: b64encode(JSON.stringify(data, null, 2)),
+        branch: cfg.branch
+      };
+      if (remoteSha) body.sha = remoteSha;
+      const res = await fetch(apiUrl(), { method: 'PUT', headers: { ...headers(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(`Commit failed (${res.status}): ${j.message || res.statusText}`);
+      remoteSha = j.content.sha; dirty = false;
+      setStatus(`Committed ✓ ${new Date().toLocaleTimeString()}`);
+    } catch (e) { setStatus(e.message, 'err'); }
+    finally { $('#commitBtn').disabled = false; render(); }
+  }
+
+  // ---------- Routing ----------
+  const hashId = () => (location.hash.match(/^#\/member\/(.+)$/) || [])[1];
+  let selId = hashId();
+  const currentId = () => selId;
+  function select(id) {
+    selId = id || null; editingTask = null; view = 'tasks';
+    try { history.replaceState(null, '', id ? `#/member/${id}` : location.pathname + location.search); } catch {}
+    render();
+  }
+  // Open the first team member if nobody (or a deleted member) is selected
+  function openFirstMemberIfNone() {
+    if (data.members.some(m => m.id === selId)) return;
+    selId = data.members[0] ? data.members[0].id : null;
+    try { history.replaceState(null, '', selId ? `#/member/${selId}` : location.pathname + location.search); } catch {}
+  }
+  window.addEventListener('hashchange', () => { selId = hashId(); editingTask = null; render(); });
+
+  // ---------- Render ----------
+  function render() {
+    renderMembers();
+    $('#musicBtn').classList.toggle('on', view === 'music');
+    if (view === 'music') renderMusic(); else renderMain();
+  }
+
+  // ---------- Music ----------
+  const SONGS = [
+    { file: 'music/the-moment.mp3', title: 'The Moment' },
+    { file: 'music/dont-blink.mp3', title: "Don't Blink" },
+    { file: 'music/intc.mp3', title: 'INTC' },
+    { file: 'music/no-gasoline.mp3', title: 'No Gasoline' },
+  ];
+  const MUSIC_KEY = 'teamboard.music';
+  let view = 'tasks';
+  let music = { volume: 0.5, muted: false, enabled: SONGS.map(s => s.file) };
+  try { Object.assign(music, JSON.parse(localStorage.getItem(MUSIC_KEY) || '{}')); } catch {}
+  const saveMusic = () => { try { localStorage.setItem(MUSIC_KEY, JSON.stringify(music)); } catch {} };
+  const audio = $('#audio');
+  let current = null;       // file currently loaded
+  let waitingForClick = false;
+
+  function applyVolume() { audio.volume = music.volume; audio.muted = music.muted; }
+  function pool() { const p = SONGS.filter(s => music.enabled.includes(s.file)); return p.length ? p : []; }
+  function pickRandom() {
+    const p = pool();
+    if (!p.length) return null;
+    const others = p.length > 1 ? p.filter(s => s.file !== current) : p;
+    return others[Math.floor(Math.random() * others.length)];
+  }
+  function playSong(song) {
+    if (!song) { audio.pause(); current = null; updateMusicUI(); return; }
+    current = song.file;
+    audio.src = song.file;
+    applyVolume();
+    audio.play().then(() => { waitingForClick = false; updateMusicUI(); }).catch(() => {
+      // Browsers block autoplay until the user interacts with the page — start on first click/key.
+      waitingForClick = true; updateMusicUI();
+    });
+    updateMusicUI();
+  }
+  const resumeOnInteract = () => { if (waitingForClick && current) audio.play().then(() => { waitingForClick = false; updateMusicUI(); }).catch(() => {}); };
+  ['pointerdown', 'click', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, resumeOnInteract, true));
+  audio.addEventListener('ended', () => playSong(pickRandom()));
+  audio.addEventListener('play', updateMusicUI);
+  audio.addEventListener('pause', updateMusicUI);
+
+  function updateMusicUI() {
+    $('#musicBtn').classList.toggle('playing', !audio.paused);
+    $('#musicHint').hidden = !(waitingForClick && audio.paused);
+    if (view === 'music') renderMusic();
+  }
+
+  function renderMusic() {
+    const song = SONGS.find(s => s.file === current);
+    const pct = Math.round(music.volume * 100);
+    $('#main').innerHTML = `
+      <div class="page-head"><h2>🎵 Main menu music</h2></div>
+      <div class="card">
+        <div class="player">
+          <div class="now"><small>${audio.paused ? (waitingForClick ? 'Click anywhere to start' : 'Paused') : 'Now playing'}</small>
+            <strong>${song ? esc(song.title) : '—'}</strong></div>
+          <button data-m="toggle" class="primary">${audio.paused ? '▶ Play' : '⏸ Pause'}</button>
+          <button data-m="next">⏭ Shuffle next</button>
+        </div>
+        <div class="vol">
+          <button data-m="mute" class="icon" style="color:var(--text)" title="Mute">${music.muted || music.volume === 0 ? '🔇' : '🔊'}</button>
+          <input type="range" id="volSlider" min="0" max="100" value="${pct}">
+          <span id="volLabel">${pct}%</span>
+        </div>
+      </div>
+      <div class="card">
+        <label style="margin-bottom:8px">Songs in rotation — a random one plays when the app opens</label>
+        ${SONGS.map(s => `<div class="song ${s.file === current ? 'current' : ''}">
+          <input type="checkbox" data-song="${esc(s.file)}" ${music.enabled.includes(s.file) ? 'checked' : ''}>
+          <span class="title">${esc(s.title)}</span>
+          ${s.file === current && !audio.paused ? '<span class="tag">playing</span>' : ''}
+          <button data-play="${esc(s.file)}" title="Play this song">▶</button>
+        </div>`).join('')}
+        ${pool().length ? '' : '<p class="muted-note">No songs selected — music is off.</p>'}
+        <p class="muted-note">Music settings are saved in this browser only.</p>
+      </div>`;
+  }
+
+  $('#musicBtn').addEventListener('click', () => { view = view === 'music' ? 'tasks' : 'music'; editingTask = null; render(); });
+
+  $('#main').addEventListener('click', (e) => {
+    if (view !== 'music') return;
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.m === 'toggle') {
+      if (!current) playSong(pickRandom());
+      else if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+    } else if (b.dataset.m === 'next') playSong(pickRandom());
+    else if (b.dataset.m === 'mute') { music.muted = !music.muted; applyVolume(); saveMusic(); renderMusic(); }
+    else if (b.dataset.play) playSong(SONGS.find(s => s.file === b.dataset.play));
+  });
+  $('#main').addEventListener('input', (e) => {
+    if (e.target.id !== 'volSlider') return;
+    music.volume = e.target.value / 100; music.muted = false; applyVolume(); saveMusic();
+    $('#volLabel').textContent = `${e.target.value}%`;
+  });
+  $('#main').addEventListener('change', (e) => {
+    if (view !== 'music' || !e.target.dataset.song) return;
+    const f = e.target.dataset.song;
+    music.enabled = e.target.checked ? [...new Set([...music.enabled, f])] : music.enabled.filter(x => x !== f);
+    saveMusic();
+    if (!e.target.checked && f === current) playSong(pickRandom());
+    else if (e.target.checked && !current) playSong(SONGS.find(s => s.file === f));
+    else renderMusic();
+  });
+
+  function renderMembers() {
+    const id = currentId();
+    $('#memberList').innerHTML = data.members.length ? data.members.map(m => {
+      const open = (m.tasks || []).filter(t => t.status !== 'Done').length;
+      return `<div class="member ${m.id === id ? 'active' : ''}" data-go="${m.id}">
+        <span class="name">${esc(m.name)}</span><span class="count">${open} open</span>
+        <button class="icon" data-del-member="${m.id}" title="Delete member">✕</button></div>`;
+    }).join('') : '<div class="empty" style="padding:10px 0">No members yet</div>';
+  }
+
+  function deadlineInfo(t) {
+    if (!t.deadline || t.status === 'Done') return '';
+    const days = Math.ceil((new Date(t.deadline + 'T23:59:59') - new Date()) / 864e5);
+    if (days < 0) return `<span class="pill overdue">Overdue ${-days}d · ${esc(t.deadline)}</span>`;
+    if (days <= 3) return `<span class="pill soon">Due in ${days}d · ${esc(t.deadline)}</span>`;
+    return `<span class="pill">Due ${esc(t.deadline)}</span>`;
+  }
+
+  function taskForm(t = {}, submitLabel = 'Add task') {
+    const opt = (list, v) => list.map(x => `<option ${x === v ? 'selected' : ''}>${x}</option>`).join('');
+    return `<div class="grid">
+      <div><label>Name</label><input name="name" required value="${esc(t.name)}" placeholder="e.g. Player jump animation"></div>
+      <div><label>Deadline</label><input type="date" name="deadline" value="${esc(t.deadline)}"></div>
+      <div><label>Priority</label><select name="priority">${opt(['Low','Medium','High'], t.priority || 'Medium')}</select></div>
+      <div><label>Status</label><select name="status">${opt(['To do','In progress','Blocked','Done'], t.status || 'To do')}</select></div>
+      <div class="full"><label>Description</label><textarea name="description" placeholder="Details, links, acceptance criteria…">${esc(t.description)}</textarea></div>
+      <div class="full" style="display:flex;gap:8px;justify-content:flex-end">
+        ${submitLabel !== 'Add task' ? '<button type="button" data-cancel-edit>Cancel</button>' : ''}
+        <button class="primary" type="submit">${submitLabel}</button></div>
+    </div>`;
+  }
+
+  function renderMain() {
+    const id = currentId();
+    const m = data.members.find(x => x.id === id);
+    if (!m) {
+      $('#main').innerHTML = `<div class="empty">${data.members.length ? 'Pick a team member on the left.' : 'Add your first team member on the left to get started.'}</div>`;
+      return;
+    }
+    m.tasks ||= [];
+    const order = { 'High': 0, 'Medium': 1, 'Low': 2 };
+    const tasks = m.tasks
+      .filter(t => filter === 'all' || (filter === 'open' ? t.status !== 'Done' : t.status === 'Done'))
+      .slice().sort((a, b) => (a.status === 'Done') - (b.status === 'Done') || (a.deadline || '9999').localeCompare(b.deadline || '9999') || order[a.priority] - order[b.priority]);
+
+    $('#main').innerHTML = `
+      <div class="page-head">
+        <h2>${esc(m.name)}</h2>
+        <input id="roleInput" style="max-width:220px" placeholder="Role (e.g. Artist)" value="${esc(m.role)}">
+      </div>
+      <form class="card" id="addTaskForm">${taskForm()}</form>
+      <div class="filters">
+        ${['all','open','done'].map(f => `<button data-filter="${f}" class="${filter === f ? 'on' : ''}">${f[0].toUpperCase() + f.slice(1)}</button>`).join('')}
+      </div>
+      ${tasks.length ? tasks.map(t => editingTask === t.id
+        ? `<form class="task card" data-edit-form="${t.id}">${taskForm(t, 'Save')}</form>`
+        : `<div class="task p-${esc(t.priority)} ${t.status === 'Done' ? 'done' : ''}">
+          <div class="task-top">
+            <input type="checkbox" style="width:auto" data-toggle="${t.id}" ${t.status === 'Done' ? 'checked' : ''} title="Mark done">
+            <span class="t-name">${esc(t.name)}</span>
+            <select data-status="${t.id}">${['To do','In progress','Blocked','Done'].map(s => `<option ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+            <button class="icon" style="color:var(--muted)" data-edit="${t.id}" title="Edit">✎</button>
+            <button class="icon" data-del-task="${t.id}" title="Delete task">✕</button>
+          </div>
+          ${t.description ? `<p class="t-desc">${esc(t.description)}</p>` : ''}
+          <div class="meta"><span class="pill">${esc(t.priority)} priority</span>${deadlineInfo(t)}</div>
+        </div>`).join('') : '<div class="empty">No tasks here.</div>'}
+    `;
+  }
+
+  // ---------- Events ----------
+  $('#addMemberForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = $('#newMemberName').value.trim();
+    if (!name) return;
+    const m = { id: uid(), name, role: '', tasks: [] };
+    data.members.push(m);
+    $('#newMemberName').value = '';
+    selId = m.id; select(m.id);
+    markDirty();
+  });
+
+  $('#memberList').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-del-member]');
+    if (del) {
+      e.stopPropagation();
+      const m = data.members.find(x => x.id === del.dataset.delMember);
+      if (m && confirm(`Delete ${m.name} and all ${m.tasks.length} of their tasks?`)) {
+        data.members = data.members.filter(x => x !== m);
+        if (currentId() === m.id) { openFirstMemberIfNone(); view = 'tasks'; }
+        markDirty();
+      }
+      return;
+    }
+    const go = e.target.closest('[data-go]');
+    if (go) select(go.dataset.go);
+  });
+
+  const member = () => data.members.find(x => x.id === currentId());
+  const formTask = (form) => Object.fromEntries(['name','description','deadline','priority','status'].map(k => [k, form.elements[k].value.trim()]));
+
+  $('#main').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const m = member(); if (!m) return;
+    if (e.target.id === 'addTaskForm') {
+      m.tasks.push({ id: uid(), created: new Date().toISOString().slice(0, 10), ...formTask(e.target) });
+    } else if (e.target.dataset.editForm) {
+      const t = m.tasks.find(x => x.id === e.target.dataset.editForm);
+      Object.assign(t, formTask(e.target)); editingTask = null;
+    }
+    markDirty();
+  });
+
+  $('#main').addEventListener('click', (e) => {
+    const m = member(); if (!m) return;
+    const el = e.target.closest('button');
+    if (!el) return;
+    if (el.dataset.filter) { filter = el.dataset.filter; render(); }
+    else if (el.dataset.edit) { editingTask = el.dataset.edit; render(); }
+    else if ('cancelEdit' in el.dataset) { editingTask = null; render(); }
+    else if (el.dataset.delTask) {
+      const t = m.tasks.find(x => x.id === el.dataset.delTask);
+      if (t && confirm(`Delete task "${t.name}"?`)) { m.tasks = m.tasks.filter(x => x !== t); markDirty(); }
+    }
+  });
+
+  $('#main').addEventListener('change', (e) => {
+    const m = member(); if (!m) return;
+    const t = m.tasks.find(x => x.id === (e.target.dataset.toggle || e.target.dataset.status));
+    if (e.target.dataset.toggle) { t.status = e.target.checked ? 'Done' : 'To do'; markDirty(); }
+    else if (e.target.dataset.status) { t.status = e.target.value; markDirty(); }
+    else if (e.target.id === 'roleInput') { m.role = e.target.value.trim(); markDirty(); }
+  });
+
+  $('#commitBtn').addEventListener('click', commit);
+  $('#reloadBtn').addEventListener('click', () => {
+    if (dirty && !confirm('Discard your unsaved changes and load the latest from GitHub?')) return;
+    load();
+  });
+
+  function openSettings() {
+    $('#sOwner').value = cfg.owner; $('#sRepo').value = cfg.repo;
+    $('#sBranch').value = cfg.branch; $('#sPath').value = cfg.path; $('#sToken').value = cfg.token;
+    $('#settingsDlg').showModal();
+  }
+  $('#settingsBtn').addEventListener('click', openSettings);
+  $('#settingsDlg').addEventListener('close', () => {
+    if ($('#settingsDlg').returnValue !== 'save') return;
+    cfg = {
+      owner: $('#sOwner').value.trim(), repo: $('#sRepo').value.trim(),
+      branch: $('#sBranch').value.trim() || 'main', path: $('#sPath').value.trim() || 'data.json',
+      token: $('#sToken').value.trim()
+    };
+    saveCfg();
+    if (!dirty) load(); else setStatus('Settings saved — Commit to save your changes', 'dirty');
+  });
+
+  window.addEventListener('beforeunload', (e) => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  applyVolume();
+  playSong(pickRandom()); // random main-menu song on open
+  load();
+})();
+</script>
+</body>
+</html>
